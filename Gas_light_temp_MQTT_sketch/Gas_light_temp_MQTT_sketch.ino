@@ -46,7 +46,8 @@ float           SmokeCurve[3] ={2.3,0.53,-0.44};    //two points are taken from 
                                                     //to the original curve.
                                                     //data format:{ x, y, slope}; point1: (lg200, 0.53), point2: (lg10000,  -0.22)                                                     
 float           Ro           =  10;                 //Ro is initialized to 10 kilo ohms
-String gasS; 
+String gasS;
+int gasI;
 
 //light settings
 char* lightC;
@@ -61,6 +62,8 @@ byte MAC_ADDRESS[] = {  0xDE, 0xAD, 0xBE, 0xEF, 0x00, 0x54 };
 char clientName[ ] = "sfo-arduino02";
 char topic_heartbeat[ ] = "arduino02/heartbeat";
 char topic_gas[ ] = "arduino02/gas";
+char topic_co[ ] = "arduino02/co";
+char topic_smoke[ ] = "arduino02/smoke";
 char topic_light[ ] = "arduino02/light";
 char topic_temp[ ] = "arduino02/temp";
 char message_buffer[100]; //msg buffer for publish message
@@ -74,6 +77,7 @@ unsigned long time; // variable to remember last publish
 
 //temperature setting
 int tempPin=3;
+String tempString;
 int tempReading;
 
 void setup()
@@ -104,15 +108,21 @@ void loop()
 void TestLoop()
 {
   Serial.print("Photo:");
-  Serial.print(PhotosensorRead());
+  Serial.print(PhotoSensorRead());
   Serial.print("\n");
   Serial.print("Gas:");
-  Serial.print(GassensorRead());
+  Serial.print(GasSensorRead());
+  Serial.print("\n");
+  Serial.print("CO:");
+  Serial.print(COSensorRead());
+  Serial.print("\n");
+  Serial.print("Smoke:");
+  Serial.print(SmokeSensorRead());
   Serial.print("\n");
   Serial.print("Temp:");
-  Serial.print(TempsensorRead());
+  Serial.print(TempSensorRead());
   Serial.print("\n");
-  delay(200);
+  delay(800);
 }
 
 void MQTTLoop()
@@ -120,9 +130,11 @@ void MQTTLoop()
    // Publish sensor reading every X milliseconds
   if (millis() > (time + 60000)) {
     time = millis();
-    client.publish(topic_light,PhotosensorRead());
-    client.publish(topic_gas,GassensorRead());
-    client.publish(topic_temp,TempsensorRead());
+    client.publish(topic_light,PhotoSensorRead());
+    client.publish(topic_gas,GasSensorRead());
+    client.publish(topic_co,COSensorRead());
+    client.publish(topic_smoke,SmokeSensorRead());
+    client.publish(topic_temp,TempSensorRead());
   }
    
   // MQTT client loop processing
@@ -148,26 +160,40 @@ void ConnectionInit()
    }
 }
 
-char* TempsensorRead()
+char* TempSensorRead()
 {
-  tempReading = 30;
-  char charBuf[7];
-   dtostrf(tempReading, 7, 0, charBuf);
+  char charBuf[50];
+  tempReading = analogRead(tempPin); 
+  tempString = String(tempReading);
+  tempString.toCharArray(charBuf,50);
   return charBuf;
 }
 
-char* GassensorRead()
+char* COSensorRead()
 {
-   gasS = "LPG:"+ String(MQGetGasPercentage(MQRead(MQ_PIN)/Ro,GAS_LPG),2)  + "ppm;CO:" + String(MQGetGasPercentage(MQRead(MQ_PIN)/Ro,GAS_CO),2) + "ppm;SMOKE:" + String(MQGetGasPercentage(MQRead(MQ_PIN)/Ro,GAS_SMOKE),2) +"ppm";
    char charBuf[50];
-   gasS.toCharArray(charBuf, 50) ;
- return charBuf;
+   gasS = String(MQGetGasPercentage(MQRead(MQ_PIN)/Ro,GAS_CO));
+   gasS.toCharArray(charBuf,50);
+   return charBuf;
+}
+char* SmokeSensorRead()
+{
+   char charBuf[50];
+   gasS = String(MQGetGasPercentage(MQRead(MQ_PIN)/Ro,GAS_SMOKE));
+   gasS.toCharArray(charBuf,50);
+   return charBuf;
+}
+char* GasSensorRead()
+{
+   char charBuf[50];
+   gasS = String(MQGetGasPercentage(MQRead(MQ_PIN)/Ro,GAS_LPG));
+   gasS.toCharArray(charBuf,50);
+   return charBuf;
 }
 
-char* PhotosensorRead()
+char* PhotoSensorRead()
 {
   photocellReading = analogRead(photocellPin); 
-
   if (photocellReading < 10) {
     lightC = "Dark";
   } else if (photocellReading < 200) {
